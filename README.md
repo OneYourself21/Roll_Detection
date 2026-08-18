@@ -9,7 +9,7 @@ The motive to switch to parquet was due to SQLite slow 3second speed to SELECT t
 ## Database
 
 Used Parquet_Builder from https://github.com/OneYourself21/Databento_CSV_to_Parquet as the database.
-It used Polars set in EST however duckdb pulls with local session timezone by default so set timezone to EST on polars.
+It used Polars set in EST however duckdb pulls with local session timezone by default so set timezone to EST on duckdb to not be stuck on BST.
 
 ---
 
