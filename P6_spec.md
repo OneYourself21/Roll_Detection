@@ -10,7 +10,7 @@ Redo P5's roll-detection reasoning as SQL window functions in DuckDB, run agains
 
 1. **Daily returns per contract/symbol**, computed with a window function (ordered frame, not a Python loop).
 2. **Rolling stats** (your choice — rolling volatility or rolling volume is reasonable) using a windowed frame clause.
-3. **Roll-detection query**: formalize P5's manual heuristic ("next contract's daily volume overtakes current front-month's, with a sustained margin to avoid flip-flopping") as a single window-function query instead of eyeballing/looping. This is the centerpiece — it should reproduce or improve on P5's findings, and you should be able to point at where they agree or diverge.
+3. **Roll-detection query**: formalize P5's manual heuristic ("next contract's daily volume overtakes current front-month's, with a sustained margin to avoid flip-flopping") as a single window-function query instead of eyeballing/looping. This is the centerpiece.
 4. **One runtime comparison**: the same query (pick one — roll-detection is the natural candidate) expressed in DuckDB SQL vs. Polars, timed with a custom context manager. One comparison, not a suite — resist the urge to benchmark everything.
 5. **Context manager**: at least one, doing something real — timing the query, or managing a DuckDB connection's lifecycle. Should demonstrate you understand `__enter__`/`__exit__` semantics, not just decorate a function with `@contextmanager` for its own sake.
 6. **Findings note** (GitHub, like P4/P5): roll-detection results vs. P5's, timing observations, and a stated (and justified) decision on the EST/UTC storage question — pick one, say why, move on.
@@ -22,7 +22,7 @@ Redo P5's roll-detection reasoning as SQL window functions in DuckDB, run agains
 - No string-concatenated SQL if any query takes a parameter.
 - Clean, honest commit history — no "final version."
 - `.venv`, `__pycache__`, and the Parquet file itself stay git-ignored (already true in Parquet_Builder — keep it that way).
-- Verify results by querying, not by eyeballing — if you claim the roll-detection query matches P5, show the comparison.
+- Verify results by querying, not by eyeballing.
 
 ## Explicitly Out of Scope
 

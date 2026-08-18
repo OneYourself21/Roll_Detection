@@ -2,7 +2,7 @@
 
 Goal is to use window functions in parquet and duckdb to find when to switch contracts.
 Comparison between the speed of the two is also planned.
-The motive was due to SQLite slow 3second speed to SELECT the entire database.
+The motive to switch to parquet was due to SQLite slow 3second speed to SELECT the entire database.
 
 ---
 
@@ -15,7 +15,7 @@ It used Polars set in EST however duckdb pulls with local session timezone by de
 
 ## Functions:
 
-### select_db(path : str) -> pl.dataframe.frame.DataFrame:
+### select_db(path : str) -> pl.DataFrame:
 
 Selects the entire database
 
@@ -25,9 +25,17 @@ Selects the entire database
 
 #### Outputs:
 
-- All candles (Every single OHLCV candle in the database as a polars dataframe)
+A polar dataframe with all OHLCV 1 min candles with the following schema:
+- ts_event : datetime
+- instrument_id : interger
+- symbol : string
+- open : float
+- high : float
+- low : float
+- close : float
+- volume : interger
 
-### daily_candles(path : str, contract : str, year : int) -> pl.dataframe.frame.DataFrame:
+### daily_candles(path : str, contract : str, year : int) -> pl.DataFrame:
 
 Computes Daily OHLCV data for a specific contract.
 
@@ -39,4 +47,31 @@ Computes Daily OHLCV data for a specific contract.
 
 #### Outputs:
 
-- Daily OHLCV candles (As a polar's dataframe)
+A polar dataframe with all OHLCV daily candles with the following schema:
+- ts_event : datetime (Note: ts_event may not be consistent during low activity days)
+- instrument_id : interger
+- symbol : string
+- open : float
+- high : float
+- low : float
+- close : float
+- volume : interger
+
+### daily_returns(path : str, contract : str, year : int) -> pl.DataFrame:
+
+Computes the close to close returns and open to close difference (intraday returns)
+
+#### Inputs:
+
+- path (A string path to the database)
+- contract (A string in a format like NQZ5 as databento stores NQZ15 and NQZ25 as NQZ5)
+- year (An interger where the contract is active e.g. for NQZ5 2015 or 2025)
+
+#### Outputs:
+
+A polar dataframe with the following schema:
+- ts_event : datetime
+- instrument_id : interger
+- symbol : string
+- close_to_close_returns : float
+- intraday_returns : float 
