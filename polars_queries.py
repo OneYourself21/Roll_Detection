@@ -1,8 +1,11 @@
 import polars as pl
+from polars import max_horizontal
+
 
 def select_db(path : str) -> pl.DataFrame:
     df = pl.read_parquet(path)
     return df
+
 
 def daily_candles(path : str, contract : str, year : int) -> pl.DataFrame:
     previous_year = year -1
@@ -44,3 +47,29 @@ def daily_returns(path : str, contract : str, year : int) -> pl.DataFrame:
     )
 
     return returns
+
+
+def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.DataFrame:
+    com = days - 1
+    days = str(days) + "d"
+
+    df = daily_candles(path, contract, year)
+
+    df = df.with_columns(
+        returns = pl.col("close") - pl.col("open"),
+        range = max_horizontal(
+                         pl.col("high") - pl.col("low"),
+                         abs(pl.col("high") - pl.col("close").shift(1)),
+                         abs(pl.col("low") - pl.col("close").shift(1))
+                   ),
+        trunc_date = pl.col("ts_event").dt.truncate("1d")
+    )
+
+    df = df.with_columns(
+        rolling_volume=pl.col("volume").rolling_sum_by(by = "trunc_date", window_size = days),
+        rolling_volatility = pl.col("returns").rolling_std_by(by = "trunc_date", window_size = days),
+        ATR = pl.col("range").ewm_mean(com = com, adjust=False),
+    )
+
+    df = df.drop("returns", "open", "high", "low", "close", "range", "trunc_date")
+    return df

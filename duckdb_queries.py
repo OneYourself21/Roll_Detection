@@ -60,7 +60,7 @@ def daily_returns(path : str, contract : str, year : int) -> pl.DataFrame:
                       WHERE symbol = $contract 
                         AND (date_part('year', ts_event) = $previous_year OR date_part('year', ts_event) = $current_year) 
                       GROUP BY strftime(ts_event - INTERVAL 18 HOUR, '%Y/%m/%d') ORDER BY 1
-                     ) sub
+                     ) daily_candles
             """
 
     returns = duckdb.sql(query, params =
@@ -73,3 +73,92 @@ def daily_returns(path : str, contract : str, year : int) -> pl.DataFrame:
                     ).pl()
 
     return returns
+
+
+def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.DataFrame:
+    previous_year = year - 1
+
+    normalising_factor = 1-(1/days)
+
+    duckdb.sql('SET TIMEZONE = "EST";')
+
+    duckdb.sql("""CREATE TABLE daily_candles AS 
+                      SELECT ts_event,
+                             instrument_id,
+                             symbol,
+                             CAST(volume AS BIGINT) AS volume,
+                          
+                             CAST(SUM(volume) OVER (ORDER BY (DATE_TRUNC('day', ts_event))
+                                        RANGE BETWEEN INTERVAL ($days - 1) DAYS PRECEDING
+                                                  AND INTERVAL 0 DAYS FOLLOWING) AS BIGINT) AS rolling_volume,
+                             
+                             stddev(returns) OVER (ORDER BY (DATE_TRUNC('day', ts_event))
+                                         RANGE BETWEEN INTERVAL ($days - 1) DAYS PRECEDING
+                                                   AND INTERVAL 0 DAYS FOLLOWING) AS rolling_volatility,
+
+                             GREATEST(high - low, 
+                                      ABS(high - LAG(close) OVER (ORDER BY ts_event)),
+                                      ABS(low -  LAG(close) OVER (ORDER BY ts_event))) AS true_range,
+
+                    
+                      FROM (SELECT FIRST(ts_event ORDER BY ts_event) AS ts_event,
+                                   ANY_VALUE(instrument_id) AS instrument_id,
+                                   ANY_VALUE(symbol) AS symbol,
+                                   FIRST(open ORDER BY ts_event) AS open,
+                                   MAX(high) AS high,
+                                   MIN(low) AS low,
+                                   LAST(close ORDER BY ts_event) AS close,
+                                   SUM(volume) AS volume,
+                                   LAST(close ORDER BY ts_event) - FIRST(open ORDER BY ts_event) AS returns,
+                            FROM read_parquet($path)
+                            WHERE symbol = $contract 
+                              AND (date_part('year', ts_event) = $previous_year OR date_part('year', ts_event) = $current_year) 
+                            GROUP BY strftime(ts_event - INTERVAL 18 HOUR, '%Y/%m/%d') ORDER BY 1)
+               """, params ={
+                             "path": path,
+                             "contract": contract,
+                             "previous_year": previous_year,
+                             "current_year": year,
+                             "days": days
+                             })
+
+    query_2 = """WITH RECURSIVE ATR (ts_event, true_range, average_true_range) AS (
+                                     -- Base case: seed with the first row
+                                     SELECT
+                                         ts_event,
+                                         true_range,
+                                         true_range AS average_true_range
+                                     FROM daily_candles
+                                     WHERE ts_event = (SELECT MIN(ts_event) FROM daily_candles)
+
+                                     UNION ALL
+
+                                     -- Recursive step: advance one row at a time
+                                     SELECT
+                                         next.ts_event,
+                                         next.true_range,
+                                         atr.average_true_range * $normalising_factor + next.true_range / $days AS average_true_range
+                                     FROM ATR atr
+                                     JOIN daily_candles next
+                                         ON next.ts_event = (
+                                             SELECT MIN(ts_event)
+                                             FROM daily_candles
+                                             WHERE ts_event > atr.ts_event
+                                                            )
+                                                                                   )
+                 SELECT
+                     dc.ts_event,
+                     dc.instrument_id,
+                     dc.symbol,
+                     dc.volume,
+                     dc.rolling_volume,
+                     dc.rolling_volatility,
+                     atr.average_true_range AS ATR
+                 FROM ATR atr
+                 JOIN daily_candles dc ON atr.ts_event = dc.ts_event
+                 """
+
+    df = duckdb.sql(query_2, params={"normalising_factor" : normalising_factor, "days" : days}).pl()
+    duckdb.sql("""DROP TABLE daily_candles;""")
+
+    return df

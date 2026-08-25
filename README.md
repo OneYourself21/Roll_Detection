@@ -75,3 +75,22 @@ A polar dataframe with the following schema:
 - symbol : string
 - close_to_close_returns : float
 - intraday_returns : float 
+
+### rolling_stats(path : str, contract : str, year : int, days : int) -> pl.DataFrame:
+
+#### Inputs:
+
+- path (A string path to the database)
+- contract (A string in a format like NQZ5 as databento stores NQZ15 and NQZ25 as NQZ5)
+- year (An interger where the contract is active e.g. for NQZ5 2015 or 2025)
+
+#### Outputs:
+
+A polar dataframe with the following schema:
+- ts_event : datetime
+- instrument_id : interger
+- symbol : string
+- volume : interger
+- rolling_volume : interger
+- rolling_volatility : float (note floating point precision between engines may cause differences between the two engines)
+- ATR : float (note floating point precision between engines may cause differences between the two engines) 
