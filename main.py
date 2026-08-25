@@ -50,6 +50,3 @@ if __name__ == '__main__':
     )
 
     print(df1.equals(df2))
-
-    print(df1)
-
