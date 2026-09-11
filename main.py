@@ -1,7 +1,10 @@
+from time import time
+
 import duckdb_queries
 import polars_queries
 import polars as pl
 import PATH
+import datetime as dt
 
 DB_PATH = PATH.return_path()
 
@@ -50,3 +53,9 @@ if __name__ == '__main__':
     )
 
     print(df1.equals(df2))
+
+    with pl.Config(tbl_rows = 12):
+        print(duckdb_queries.rollover_dates(DB_PATH, 7))
+        print(polars_queries.rollover_dates(DB_PATH, 7))
+        print(duckdb_queries.rollover_dates(DB_PATH, 7) == (polars_queries.rollover_dates(DB_PATH, 7)))
+        print(duckdb_queries.rollover_dates(DB_PATH, 7).equals(polars_queries.rollover_dates(DB_PATH, 7)))

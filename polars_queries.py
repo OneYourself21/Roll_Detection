@@ -73,3 +73,28 @@ def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.Data
 
     df = df.drop("returns", "open", "high", "low", "close", "range", "trunc_date")
     return df
+
+
+def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
+    df = pl.scan_parquet(path
+
+                         ).filter(pl.col("symbol").str.contains("-") != True
+
+    ).group_by(((pl.col("ts_event").dt.offset_by("-18h")).dt.truncate("1d").alias("temp"),
+                      pl.col("instrument_id").alias("temp2")),
+                      ).agg(
+
+        (pl.col("ts_event").first()).dt.offset_by("-18h").dt.truncate("1d"),
+        pl.col("instrument_id").first(),
+        pl.col("symbol").first(),
+        pl.col("open").first(),
+        pl.col("high").max(),
+        pl.col("low").min(),
+        pl.col("close").last(),
+        pl.col("volume").sum()
+
+    ).sort(pl.col("temp"), pl.col("temp2")).drop("temp" , "temp2"
+
+           ).collect()
+
+    return df

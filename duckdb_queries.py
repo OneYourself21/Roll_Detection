@@ -3,7 +3,7 @@ import polars as pl
 
 
 def select_db(path : str) -> pl.DataFrame:
-    duckdb.sql('SET TIMEZONE = "EST";')
+    duckdb.sql('SET TIMEZONE = "America/New_York";')
     df = duckdb.sql('SELECT * FROM "' + path + '";').pl()
     return df
 
@@ -11,7 +11,7 @@ def select_db(path : str) -> pl.DataFrame:
 def daily_candles(path : str, contract : str, year : int) -> pl.DataFrame:
     previous_year = year - 1
 
-    duckdb.sql('SET TIMEZONE = "EST";')
+    duckdb.sql('SET TIMEZONE = "America/New_York";')
 
     query = """
                SELECT FIRST(ts_event ORDER BY ts_event) AS ts_event,
@@ -43,7 +43,7 @@ def daily_candles(path : str, contract : str, year : int) -> pl.DataFrame:
 def daily_returns(path : str, contract : str, year : int) -> pl.DataFrame:
     previous_year = year - 1
 
-    duckdb.sql('SET TIMEZONE = "EST";')
+    duckdb.sql('SET TIMEZONE = "America/New_York";')
 
     query = """ SELECT ts_event,
                        instrument_id,
@@ -80,7 +80,7 @@ def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.Data
 
     normalising_factor = 1-(1/days)
 
-    duckdb.sql('SET TIMEZONE = "EST";')
+    duckdb.sql('SET TIMEZONE = "America/New_York";')
 
     duckdb.sql("""CREATE TABLE daily_candles AS 
                       SELECT ts_event,
@@ -160,5 +160,29 @@ def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.Data
 
     df = duckdb.sql(query_2, params={"normalising_factor" : normalising_factor, "days" : days}).pl()
     duckdb.sql("""DROP TABLE daily_candles;""")
+
+    return df
+
+
+def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
+    duckdb.sql('SET TIMEZONE = "America/New_York";')
+
+    query = """
+            SELECT date_trunc('day', FIRST(ts_event - INTERVAL 18 HOUR ORDER BY ts_event)) AS ts_event,
+                   ANY_VALUE(instrument_id)          AS instrument_id,
+                   ANY_VALUE(symbol)                 AS symbol,
+                   FIRST(open ORDER BY ts_event) AS open,
+                   MAX(high) AS high,
+                   MIN(low) AS low,
+                   LAST(close ORDER BY ts_event) AS close,
+                   CAST(SUM(volume) AS BIGINT) AS volume
+            FROM read_parquet($path)
+            WHERE NOT symbol LIKE '%-%'
+            GROUP BY date_trunc('day', ts_event - INTERVAL 18 HOUR),
+                     instrument_id
+            ORDER BY 1, 2; 
+            """
+
+    df = duckdb.sql(query, params={"path" : path}).pl()
 
     return df

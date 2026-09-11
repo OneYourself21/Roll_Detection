@@ -93,4 +93,13 @@ A polar dataframe with the following schema:
 - volume : interger
 - rolling_volume : interger
 - rolling_volatility : float (note floating point precision between engines may cause differences between the two engines)
-- ATR : float (note floating point precision between engines may cause differences between the two engines) 
+- ATR : float (note floating point precision between engines may cause differences between the two engines)
+
+---
+
+# WIP
+
+### def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
+
+Currently, outputs daily candles for each candle and makes the timestamp truncated to 1 day for comparison with same day.
+Eventually will make the output the exact dates that should be outputted.
