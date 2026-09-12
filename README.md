@@ -103,3 +103,12 @@ A polar dataframe with the following schema:
 
 Currently, outputs daily candles for each candle and makes the timestamp truncated to 1 day for comparison with same day.
 Eventually will make the output the exact dates that should be outputted.
+
+### Logic
+- Orders by date and volume and then instrument_id
+- Therefore, the last row for each aggregated date column will be the highest volume. (However for contracts with the same day and volume the newer contract takes priority due to have a greater instrument_id)
+- 
+
+#### Notes: 
+- There are many debug test statements littered around
+- Instrument_id is actually different for NQZ15 (12809) and NQZ25 (158704) unlike symbol which is NQZ5. Which means using instrument_id does not create niche scenarios where NQZ9 is picked over NQH0 during a 2019 to 2020 switch.

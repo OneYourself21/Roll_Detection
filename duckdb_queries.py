@@ -167,7 +167,8 @@ def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.Data
 def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
     duckdb.sql('SET TIMEZONE = "America/New_York";')
 
-    query = """
+    daily_candles_query = """
+            CREATE TABLE daily_candles AS
             SELECT date_trunc('day', FIRST(ts_event - INTERVAL 18 HOUR ORDER BY ts_event)) AS ts_event,
                    ANY_VALUE(instrument_id)          AS instrument_id,
                    ANY_VALUE(symbol)                 AS symbol,
@@ -180,9 +181,31 @@ def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
             WHERE NOT symbol LIKE '%-%'
             GROUP BY date_trunc('day', ts_event - INTERVAL 18 HOUR),
                      instrument_id
-            ORDER BY 1, 2; 
+            ORDER BY 1, volume, instrument_id; 
             """
 
-    df = duckdb.sql(query, params={"path" : path}).pl()
+    duckdb.sql(daily_candles_query, params={"path" : path})
+
+    filter_volume_query = """
+            SELECT LAST(ts_event ORDER BY volume) AS ts_event,
+                   LAST(instrument_id ORDER BY volume) AS instrument_id,
+                   LAST(symbol ORDER BY volume) AS symbol,
+                   LAST(open ORDER BY volume) AS open,
+                   LAST(high ORDER BY volume) AS high,
+                   LAST(low ORDER BY volume) AS low,
+                   LAST(close ORDER BY volume) AS close,
+                   LAST(volume ORDER BY volume) AS volume
+            FROM daily_candles
+            GROUP BY ts_event
+            ORDER BY 1;       
+            """
+
+    df = duckdb.sql(filter_volume_query).pl()
+
+    drop_query = """
+            DROP TABLE daily_candles;
+            """
+
+    duckdb.sql(drop_query)
 
     return df

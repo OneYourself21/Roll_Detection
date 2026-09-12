@@ -93,8 +93,20 @@ def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
         pl.col("close").last(),
         pl.col("volume").sum()
 
-    ).sort(pl.col("temp"), pl.col("temp2")).drop("temp" , "temp2"
+    ).sort(pl.col("ts_event"), pl.col("volume"), pl.col("instrument_id")).drop("temp" , "temp2"
 
-           ).collect()
+           )
+
+    df = df.group_by(pl.col("ts_event").alias("temp") , maintain_order= True
+    ).agg(
+        pl.col("ts_event").last(),
+        pl.col("instrument_id").last(),
+        pl.col("symbol").last(),
+        pl.col("open").last(),
+        pl.col("high").last(),
+        pl.col("low").last(),
+        pl.col("close").last(),
+        pl.col("volume").last()
+    ).sort("ts_event").drop("temp").collect()
 
     return df
