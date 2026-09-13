@@ -50,9 +50,18 @@ if __name__ == '__main__':
     )
 
     print(df1.equals(df2))
+    print("---")
 
-    with pl.Config(tbl_rows = 20):
-        print(duckdb_queries.rollover_dates(DB_PATH, 7))
-        print(polars_queries.rollover_dates(DB_PATH, 7))
-        print(duckdb_queries.rollover_dates(DB_PATH, 7) == (polars_queries.rollover_dates(DB_PATH, 7)))
-        print(duckdb_queries.rollover_dates(DB_PATH, 7).equals(polars_queries.rollover_dates(DB_PATH, 7)))
+    print("Are the contract rollover dates the same for a min overlap of 1 day?")
+    print(duckdb_queries.rollover_dates(DB_PATH, 1
+        ).equals(polars_queries.rollover_dates(DB_PATH, 1)))
+    print("---")
+
+    print("Are the contract rollover dates the same for a min overlap of 7 day?")
+    print(duckdb_queries.rollover_dates(DB_PATH, 7
+                                        ).equals(polars_queries.rollover_dates(DB_PATH, 7)))
+    print("---")
+
+    with pl.Config(tbl_rows = -1 ,set_tbl_width_chars = -1):
+        print("Contract Rollover Dates (min overlap set to 1): ")
+        print(polars_queries.rollover_dates(DB_PATH, 1))

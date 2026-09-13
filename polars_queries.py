@@ -107,6 +107,31 @@ def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
         pl.col("low").last(),
         pl.col("close").last(),
         pl.col("volume").last()
-    ).sort("ts_event").drop("temp").collect()
+    ).sort("ts_event").drop("temp")
 
-    return df
+    df = df.select(
+        pl.col("ts_event"),
+        pl.col("instrument_id"),
+        pl.col("symbol"),
+        pl.col("open"),
+        pl.col("high"),
+        pl.col("low"),
+        pl.col("close"),
+        pl.col("volume"),
+
+        pl.when(pl.col("instrument_id").rolling_min(min_overlap) == pl.col("instrument_id").rolling_max(min_overlap)
+         ).then(pl.col("symbol")
+         ).alias("current_symbol")
+    ).drop_nulls() # otherwise defaults to nulls
+
+    result = df.select(
+        pl.col("ts_event"),
+        pl.col("instrument_id").shift(1).alias("previous_instrument_id"),
+        pl.col("instrument_id").alias("new_instrument_id"),
+        pl.col("current_symbol").shift(1).alias("previous_symbol"),
+        pl.col("current_symbol"),
+    ).filter(
+        pl.col("current_symbol") != pl.col("current_symbol").shift(1)
+    ).collect()
+
+    return result
