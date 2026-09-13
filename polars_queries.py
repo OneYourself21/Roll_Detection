@@ -1,7 +1,6 @@
 import polars as pl
 from polars import max_horizontal
 
-
 def select_db(path : str) -> pl.DataFrame:
     df = pl.read_parquet(path)
     return df
@@ -11,14 +10,10 @@ def daily_candles(path : str, contract : str, year : int) -> pl.DataFrame:
     previous_year = year -1
 
     df = pl.scan_parquet(path
-
     ).filter(
-
         pl.col("symbol") == contract,
         pl.col("ts_event").dt.year().is_in([previous_year, year]),
-
-    ).group_by((pl.col("ts_event").dt.offset_by("-18h")).dt.strftime('%Y/%m/%d').alias("temp"), maintain_order= True).agg(
-
+    ).group_by((pl.col("ts_event").dt.offset_by("-18h")).dt.truncate("1d").alias("temp"), maintain_order= True).agg(
         pl.col("ts_event").first(),
         pl.col("instrument_id").first(),
         pl.col("symbol").first(),
@@ -27,9 +22,7 @@ def daily_candles(path : str, contract : str, year : int) -> pl.DataFrame:
         pl.col("low").min(),
         pl.col("close").last(),
         pl.col("volume").sum()
-
     ).drop("temp"
-
     ).collect()
 
     return df
@@ -58,10 +51,10 @@ def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.Data
     df = df.with_columns(
         returns = pl.col("close") - pl.col("open"),
         range = max_horizontal(
-                         pl.col("high") - pl.col("low"),
-                         abs(pl.col("high") - pl.col("close").shift(1)),
-                         abs(pl.col("low") - pl.col("close").shift(1))
-                   ),
+            pl.col("high") - pl.col("low"),
+            abs(pl.col("high") - pl.col("close").shift(1)),
+            abs(pl.col("low") - pl.col("close").shift(1))
+        ),
         trunc_date = pl.col("ts_event").dt.truncate("1d")
     )
 
@@ -76,14 +69,12 @@ def rolling_stats(path : str, contract : str, year : int, days : int) -> pl.Data
 
 
 def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
-    df = pl.scan_parquet(path
-
-                         ).filter(pl.col("symbol").str.contains("-") != True
-
+    #Creates daily candles with every contract
+    all_daily_candles = pl.scan_parquet(path
+    ).filter(pl.col("symbol").str.contains("-") != True
     ).group_by(((pl.col("ts_event").dt.offset_by("-18h")).dt.truncate("1d").alias("temp"),
-                      pl.col("instrument_id").alias("temp2")),
-                      ).agg(
-
+                 pl.col("instrument_id").alias("temp2")),
+    ).agg(
         (pl.col("ts_event").first()).dt.offset_by("-18h").dt.truncate("1d"),
         pl.col("instrument_id").first(),
         pl.col("symbol").first(),
@@ -92,12 +83,11 @@ def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
         pl.col("low").min(),
         pl.col("close").last(),
         pl.col("volume").sum()
+    ).sort(pl.col("ts_event"), pl.col("volume"), pl.col("instrument_id")
+    ).drop("temp" , "temp2")
 
-    ).sort(pl.col("ts_event"), pl.col("volume"), pl.col("instrument_id")).drop("temp" , "temp2"
-
-           )
-
-    df = df.group_by(pl.col("ts_event").alias("temp") , maintain_order= True
+    # Filters for the max daily candle
+    filtered_daily_candles = all_daily_candles.group_by(pl.col("ts_event").alias("temp") , maintain_order= True
     ).agg(
         pl.col("ts_event").last(),
         pl.col("instrument_id").last(),
@@ -109,22 +99,18 @@ def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
         pl.col("volume").last()
     ).sort("ts_event").drop("temp")
 
-    df = df.select(
+    # Marks when a contract dominates for 7 days
+    marked_contracts = filtered_daily_candles.select(
         pl.col("ts_event"),
         pl.col("instrument_id"),
-        pl.col("symbol"),
-        pl.col("open"),
-        pl.col("high"),
-        pl.col("low"),
-        pl.col("close"),
-        pl.col("volume"),
 
         pl.when(pl.col("instrument_id").rolling_min(min_overlap) == pl.col("instrument_id").rolling_max(min_overlap)
          ).then(pl.col("symbol")
          ).alias("current_symbol")
-    ).drop_nulls() # otherwise defaults to nulls
+    ).drop_nulls() # .otherwise() defaults to nulls
 
-    result = df.select(
+    # Finds Contract switches and mark put them in a df
+    dates = marked_contracts.select(
         pl.col("ts_event"),
         pl.col("instrument_id").shift(1).alias("previous_instrument_id"),
         pl.col("instrument_id").alias("new_instrument_id"),
@@ -134,4 +120,4 @@ def rollover_dates(path : str, min_overlap : int) -> pl.DataFrame:
         pl.col("current_symbol") != pl.col("current_symbol").shift(1)
     ).collect()
 
-    return result
+    return dates
